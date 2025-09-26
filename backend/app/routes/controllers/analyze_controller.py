@@ -43,29 +43,26 @@ async def extract_text(file):
 
 
 async def analyze_with_gemini(resume: str, jd: str):
-    prompt = f"""
-You're a smart AI resume analyzer.
+    prompt = f"""Analyze resume vs job description. Be concise.
 
-Compare the following resume and job description.
+Job: {jd}
+
+Resume: {resume}
 
 Return:
-1. Match percentage (0–100)
-2. List of strong/covered skills
-3. List of missing skills
-4. Suggestions for improving the resume
+1. Match % (0-100)
+2. Top 3 strengths
+3. Top 3 gaps
+4. 2 key improvements
 
---- Job Description ---
-{jd}
-
---- Resume ---
-{resume}
-"""
+Keep under 300 words."""
 
     GEMINI_KEY = os.getenv('GEMINI_API_KEY')
     if not GEMINI_KEY:
         raise HTTPException(status_code=500, detail='Gemini API key not configured')
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    # Use gemini-flash-latest which we confirmed works with your API key
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_KEY}"
     payload = {
         'contents': [
             {'parts': [{'text': prompt}]}
@@ -73,15 +70,59 @@ Return:
     }
 
     try:
-        resp = requests.post(url, json=payload, timeout=30)
+        # Shorter timeout for faster user experience
+        resp = requests.post(url, json=payload, timeout=20)
         resp.raise_for_status()
         data = resp.json()
         result = data['candidates'][0]['content']['parts'][0]['text']
         return {'result': result}
-    except Exception as e:
-        # Log full response if available (parity with Node: console.error(error.response?.data || error.message))
+    except requests.exceptions.HTTPError as e:
+        # Log the exact HTTP error
+        error_detail = f"HTTP {e.response.status_code}: {e.response.reason}"
         try:
-            print('Gemini API error:', getattr(e, 'response', None) and e.response.json() or str(e))
+            error_response = e.response.json()
+            if 'error' in error_response:
+                error_detail = error_response['error'].get('message', error_detail)
+                # Check for quota exceeded specifically
+                if 'quota' in error_detail.lower() or 'resource_exhausted' in str(error_response.get('error', {}).get('status', '')).lower():
+                    error_detail = f"Quota exceeded. Please wait a few minutes or enable billing. Details: {error_detail}"
         except Exception:
-            print('Gemini API error:', str(e))
+            pass
+        
+        print(f'Gemini API HTTP Error: {error_detail}')
+        
+        # If DEBUG is enabled, return detailed error
+        debug_mode = os.getenv('DEBUG', 'false').lower() in ('1', 'true', 'yes')
+        if debug_mode:
+            raise HTTPException(status_code=500, detail=error_detail)
+        else:
+            raise HTTPException(status_code=500, detail='Gemini API error')
+    except Exception as e:
+        # Log other errors
+        print(f'Gemini API error: {str(e)}')
+        debug_mode = os.getenv('DEBUG', 'false').lower() in ('1', 'true', 'yes')
+        if debug_mode:
+            raise HTTPException(status_code=500, detail=str(e))
+        else:
+            raise HTTPException(status_code=500, detail='Gemini API error')
+    # If all endpoints failed, handle the error
+    if last_error:
+        # Log full response if available
+        try:
+            detail = getattr(last_error, 'response', None) and last_error.response.json() or str(last_error)
+            print('Gemini API error:', detail)
+        except Exception:
+            detail = str(last_error)
+            print('Gemini API error:', detail)
+
+        # If DEBUG is enabled in environment, return the detailed error to the client (dev only)
+        debug_mode = os.getenv('DEBUG', 'false').lower() in ('1', 'true', 'yes')
+        if debug_mode:
+            # Raise with the detailed message so the router will transform it into { error: detail }
+            raise HTTPException(status_code=500, detail=str(detail))
+
+        # Production: return a generic error message
         raise HTTPException(status_code=500, detail='Gemini API error')
+    
+    # Fallback error if no endpoints were tried
+    raise HTTPException(status_code=500, detail='No valid Gemini API endpoints available')

@@ -40,7 +40,7 @@ function App() {
 
     try {
       // Upload file to backend for text extraction
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const response = await axios.post(`${apiUrl}/api/analyze/extract-text`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -86,15 +86,17 @@ function App() {
     setResult('');
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const res = await axios.post(`${apiUrl}/api/analyze`, { 
         resume: resumeText, 
         jd: jdText 
       });
       setResult(res.data.result);
     } catch (err) {
-      setResult('Error connecting to Gemini API.');
-      console.error(err);
+      // Surface the backend error message if available (helps debugging)
+      const backendMsg = err.response?.data?.error || err.response?.data?.detail || err.message;
+      setResult(`Error: ${backendMsg}`);
+      console.error('Analyze error:', err);
     } finally {
       setLoading(false);
     }
