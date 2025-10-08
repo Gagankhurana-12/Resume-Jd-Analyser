@@ -35,8 +35,7 @@ app = FastAPI(title="AI Resume JD Analyzer - FastAPI")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        'https://jdresumeanalyzer.netlify.app',
-        'https://jdconnect.netlify.app',
+        'https://jdresumeanalyser.netlify.app',
         'http://localhost:5173',
         'http://localhost:5174'
     ],
