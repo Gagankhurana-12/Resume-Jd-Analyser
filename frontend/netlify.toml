@@ -4,7 +4,7 @@
   publish = "dist"
 
 [build.environment]
-  VITE_API_URL = "https://ai-resume-jd-analyzer.onrender.com"
+  VITE_API_URL = "https://resume-jd-analyser.onrender.com"
 
 [[headers]]
   for = "*.js"
@@ -23,7 +23,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://ai-resume-jd-analyzer.onrender.com/api/:splat"
+  to = "https://resume-jd-analyser.onrender.com/api/:splat"
   status = 200
   force = true
 
